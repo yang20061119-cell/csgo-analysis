@@ -1,0 +1,218 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Load the data
+df = pd.read_csv('csgo_round_snapshots.csv')
+
+print("="*60)
+print("CS:GO AWP WIN RATE ANALYSIS")
+print("="*60)
+
+# ============ 1. Basic AWP vs No AWP ============
+# Check if AWP is present in the round (either CT or T)
+df['has_awp'] = (df['ct_weapon_awp'] > 0) | (df['t_weapon_awp'] > 0)
+
+# Overall win rates
+awp_rounds = df[df['has_awp']]
+no_awp_rounds = df[~df['has_awp']]
+
+# CT win rate
+ct_win_awp = (awp_rounds['round_winner'] == 'CT').mean()
+ct_win_no_awp = (no_awp_rounds['round_winner'] == 'CT').mean()
+
+# T win rate
+t_win_awp = (awp_rounds['round_winner'] == 'T').mean()
+t_win_no_awp = (no_awp_rounds['round_winner'] == 'T').mean()
+
+print(f"\n📊 TOTAL ROUNDS ANALYZED: {len(df)}")
+print(f"   Rounds with AWP: {len(awp_rounds)} ({len(awp_rounds)/len(df)*100:.1f}%)")
+print(f"   Rounds without AWP: {len(no_awp_rounds)} ({len(no_awp_rounds)/len(df)*100:.1f}%)")
+
+print(f"\n📈 WIN RATES:")
+print(f"   With AWP:    CT {ct_win_awp:.1%} | T {t_win_awp:.1%}")
+print(f"   Without AWP: CT {ct_win_no_awp:.1%} | T {t_win_no_awp:.1%}")
+print(f"\n🔍 AWP ADVANTAGE:")
+print(f"   CT win rate increased by {(ct_win_awp - ct_win_no_awp)*100:.1f} percentage points")
+print(f"   T win rate increased by {(t_win_awp - t_win_no_awp)*100:.1f} percentage points")
+
+# ============ 2. Analysis by Map ============
+print("\n" + "="*60)
+print("📌 ANALYSIS BY MAP")
+print("="*60)
+
+maps = df['map'].unique()
+map_results = []
+
+for map_name in maps:
+    map_df = df[df['map'] == map_name]
+    if len(map_df) < 50:  # Skip maps with too few samples
+        continue
+        
+    map_awp = map_df[map_df['has_awp']]
+    map_no_awp = map_df[~map_df['has_awp']]
+    
+    if len(map_awp) < 10 or len(map_no_awp) < 10:
+        continue
+    
+    ct_win_map_awp = (map_awp['round_winner'] == 'CT').mean()
+    ct_win_map_no_awp = (map_no_awp['round_winner'] == 'CT').mean()
+    advantage = ct_win_map_awp - ct_win_map_no_awp
+    
+    map_results.append({
+        'map': map_name,
+        'awp_rounds': len(map_awp),
+        'no_awp_rounds': len(map_no_awp),
+        'ct_win_awp': ct_win_map_awp,
+        'ct_win_no_awp': ct_win_map_no_awp,
+        'advantage': advantage
+    })
+    
+    print(f"\n{map_name.upper()}:")
+    print(f"   AWP rounds: {len(map_awp)} | No AWP: {len(map_no_awp)}")
+    print(f"   CT win with AWP: {ct_win_map_awp:.1%}")
+    print(f"   CT win without AWP: {ct_win_map_no_awp:.1%}")
+    print(f"   AWP advantage: {advantage*100:+.1f}pp")
+
+# ============ 3. Which side benefits more from AWP? ============
+print("\n" + "="*60)
+print("🔫 CT vs T: WHO BENEFITS MORE FROM AWP?")
+print("="*60)
+
+# CT side AWP
+ct_awp_rounds = df[df['ct_weapon_awp'] > 0]
+ct_no_awp_rounds = df[(df['ct_weapon_awp'] == 0) & (df['round_winner'] != 'T')]  # Rough approximation
+
+if len(ct_awp_rounds) > 0 and len(ct_no_awp_rounds) > 0:
+    ct_win_with_ct_awp = (ct_awp_rounds['round_winner'] == 'CT').mean()
+    ct_win_without_ct_awp = (ct_no_awp_rounds['round_winner'] == 'CT').mean()
+    print(f"\nCT side:")
+    print(f"   When CT has AWP: CT wins {ct_win_with_ct_awp:.1%}")
+    print(f"   When CT has no AWP: CT wins {ct_win_without_ct_awp:.1%}")
+    print(f"   AWP helps CT by: {(ct_win_with_ct_awp - ct_win_without_ct_awp)*100:+.1f}pp")
+
+# T side AWP
+t_awp_rounds = df[df['t_weapon_awp'] > 0]
+t_no_awp_rounds = df[(df['t_weapon_awp'] == 0) & (df['round_winner'] != 'CT')]
+
+if len(t_awp_rounds) > 0 and len(t_no_awp_rounds) > 0:
+    t_win_with_t_awp = (t_awp_rounds['round_winner'] == 'T').mean()
+    t_win_without_t_awp = (t_no_awp_rounds['round_winner'] == 'T').mean()
+    print(f"\nT side:")
+    print(f"   When T has AWP: T wins {t_win_with_t_awp:.1%}")
+    print(f"   When T has no AWP: T wins {t_win_without_t_awp:.1%}")
+    print(f"   AWP helps T by: {(t_win_with_t_awp - t_win_without_t_awp)*100:+.1f}pp")
+
+# ============ 4. Multiple AWP effect ============
+print("\n" + "="*60)
+print("🔢 MULTIPLE AWPS EFFECT")
+print("="*60)
+
+df['awp_count'] = df['ct_weapon_awp'] + df['t_weapon_awp']
+
+for count in sorted(df['awp_count'].unique()):
+    rounds = df[df['awp_count'] == count]
+    if len(rounds) > 10:
+        ct_win = (rounds['round_winner'] == 'CT').mean()
+        print(f"{count} AWP(s) in round: {len(rounds)} rounds → CT wins {ct_win:.1%}")
+
+# ============ 5. Visualization ============
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# Plot 1: Overall comparison
+ax1 = axes[0, 0]
+categories = ['With AWP', 'Without AWP']
+ct_wins = [ct_win_awp, ct_win_no_awp]
+t_wins = [t_win_awp, t_win_no_awp]
+
+x = np.arange(len(categories))
+width = 0.35
+
+ax1.bar(x - width/2, ct_wins, width, label='CT Win', color='blue', alpha=0.7)
+ax1.bar(x + width/2, t_wins, width, label='T Win', color='orange', alpha=0.7)
+ax1.set_ylabel('Win Rate')
+ax1.set_title('Win Rates: With AWP vs Without AWP')
+ax1.set_xticks(x)
+ax1.set_xticklabels(categories)
+ax1.legend()
+ax1.axhline(y=0.5, color='gray', linestyle='--', alpha=0.5)
+ax1.set_ylim(0, 1)
+
+# Plot 2: Map comparison
+ax2 = axes[0, 1]
+if map_results:
+    maps_list = [r['map'] for r in map_results]
+    advantages = [r['advantage']*100 for r in map_results]
+    
+    colors = ['green' if a > 0 else 'red' for a in advantages]
+    ax2.bar(maps_list, advantages, color=colors, alpha=0.7)
+    ax2.set_ylabel('AWP Advantage (percentage points)')
+    ax2.set_title('AWP Advantage by Map')
+    ax2.axhline(y=0, color='black', linestyle='-', alpha=0.3)
+    ax2.tick_params(axis='x', rotation=45)
+
+# Plot 3: Multiple AWPs
+ax3 = axes[1, 0]
+awp_counts = []
+win_rates = []
+sizes = []
+
+for count in sorted(df['awp_count'].unique()):
+    rounds = df[df['awp_count'] == count]
+    if len(rounds) > 10:
+        awp_counts.append(count)
+        win_rates.append((rounds['round_winner'] == 'CT').mean())
+        sizes.append(len(rounds))
+
+scatter = ax3.scatter(awp_counts, win_rates, s=[s/10 for s in sizes], alpha=0.6, c='purple')
+ax3.set_xlabel('Number of AWPs in round')
+ax3.set_ylabel('CT Win Rate')
+ax3.set_title('Effect of Multiple AWPs')
+ax3.grid(True, alpha=0.3)
+ax3.set_ylim(0, 1)
+
+# Plot 4: Sample distribution
+ax4 = axes[1, 1]
+labels = ['CT has AWP', 'T has AWP', 'Both have AWP', 'No AWP']
+ct_awp_only = len(df[(df['ct_weapon_awp']>0) & (df['t_weapon_awp']==0)])
+t_awp_only = len(df[(df['ct_weapon_awp']==0) & (df['t_weapon_awp']>0)])
+both_awp = len(df[(df['ct_weapon_awp']>0) & (df['t_weapon_awp']>0)])
+no_awp = len(df[(df['ct_weapon_awp']==0) & (df['t_weapon_awp']==0)])
+
+sizes = [ct_awp_only, t_awp_only, both_awp, no_awp]
+ax4.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=['blue', 'orange', 'purple', 'gray'])
+ax4.set_title('Round Distribution by AWP Ownership')
+
+plt.tight_layout()
+plt.savefig('awp_analysis.png', dpi=150)
+plt.show()
+
+# ============ 6. Statistical significance ============
+from scipy import stats
+
+print("\n" + "="*60)
+print("📐 STATISTICAL SIGNIFICANCE")
+print("="*60)
+
+# Create contingency table
+contingency_table = pd.crosstab(df['has_awp'], df['round_winner'] == 'CT')
+print("\nContingency table:")
+print(contingency_table)
+
+# Chi-square test
+chi2, p_value, dof, expected = stats.chi2_contingency(contingency_table)
+print(f"\nChi-square test: p-value = {p_value:.4f}")
+if p_value < 0.05:
+    print("✅ The difference is statistically significant (p < 0.05)")
+else:
+    print("❌ The difference is NOT statistically significant (p >= 0.05)")
+
+print("\n" + "="*60)
+print("🎯 SUMMARY")
+print("="*60)
+print(f"""
+- AWP gives CT a {(ct_win_awp - ct_win_no_awp)*100:+.1f} percentage point advantage
+- AWP gives T a {(t_win_awp - t_win_no_awp)*100:+.1f} percentage point advantage
+- Best map for AWP: {max(map_results, key=lambda x: x['advantage'])['map'] if map_results else 'N/A'}
+- Worst map for AWP: {min(map_results, key=lambda x: x['advantage'])['map'] if map_results else 'N/A'}
+""")
